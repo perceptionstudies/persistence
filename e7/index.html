@@ -1,0 +1,839 @@
+<!-- Original script created by Tal Boger -->
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
+<div id="experiment">
+  <p id="title"><strong>Which frame did you see?</strong></p>
+  <p id="browserCompat"><strong>Unfortunately, this study does not work in your current browser. Please use Chrome, Firefox, or Safari. Sorry!</strong></p>
+ 	<span id="instructions">
+    <p>In this experiment, you will watch a series of short videos.</p>
+  </span>
+  <span id="startInstructions">
+    <p><strong>Your task</strong>: After each video finishes playing, you will be presented with 2 options of frames. One of them appeared in the video, and one did not; choose the fram that appeared in the video.</p>
+    <p>You will make these judgments by pressing on the arrow key corresponding to the image you think you saw (i.e., if you remember seeing the left image, you will press the left arrow key on your keyboard).</p>
+    <br>
+    <br>
+    <a href='javascript:StartExperiment()' id='startExperiment'>Start experiment</a>
+  </span>
+
+  <div id="progressContainer">
+    <div class="progress" id="progressText">Study Progress</div>
+      <div class="progress" id="progressOutline">
+      <div class="progress" id="progressBar"></div>
+    </div>
+  </div>
+  <div id="videoInstructions">
+    <p style="text-align:center">Please watch this video and play close attention to what you see.</p>
+    <p style="text-align:center">Press the "enter" button on your keyboard to reveal and play the video.</p>
+  </div>
+  <div id="responseInstructions">
+    <p style="text-align:center">If you remember seeing the <strong>left</strong> image, press the <strong>left arrow key</strong> on your keyboard.</p>
+    <p style="text-align:center">If you remember seeing the <strong>right</strong> image, press the <strong>right arrow key</strong> on your keyboard.</p>
+  </div>
+  <br>
+  <br>
+
+  <div class="container" id="container_video">
+    <video id="videoEvent" src="" class="center">
+  </div>
+
+  <img id="maskImage" src="" height=396 width=704 style="position:absolute; left:50%; top:150px; transform:translate(-50%, 150px);">
+
+  <div class="container" id="afcContainer">
+    <div class="container" id="container1" style="top:50px">
+      <p>Left arrow key.</p>
+      <img id="imgLeft" width=400vw height="auto" margin=5% style="overflow:hidden position:absolute"></img>
+    </div>
+    <div class="container" id="container2" style="top:50px">
+      <p>Right arrow key.</p>
+      <img id="imgRight" width=400vw height="auto" margin=5% style="overflow:hidden position:absolute"></img>
+    </div>
+  </div>
+
+</div>
+
+<div id="questionText">
+  <strong>Please answer the following questions.</strong>
+  <p style="text-align:center">Please describe the task you had to complete in this study</p>
+  <textarea id="taskGuess" rows=4 cols=40 placeholder="Enter your amswer here..."></textarea>
+	<input type="hidden" id="taskGuess" name="taskGuess">
+  <br>
+  <p style="text-align:center">If you had to guess, what do you think was the purpose of this study?</p>
+  <textarea id="purposeGuess" rows=4 cols=40 placeholder="Enter your answer here..."></textarea>
+	<input type="hidden" id="purposeGuess" name="purposeGuess">
+  <br>
+  <p style="text-align:center">What is 1 + 1?</p>
+  <textarea id="sumCheck" rows=1 cols=20 placeholder="Enter your answer here..."></textarea>
+  <br>
+  <br>
+  <a href='javascript:doneExperiment()' id='doneExperiment' class='button'>Next</a>
+</div>
+
+<div id="doneText">
+	<strong>This is the last page of the study. Do not close your browser! You will be able to submit your results and be redirected to Prolific at the end of this page.</strong>
+  <br>
+  <p>You can also feel free to leave any comments below about how the experiment went, but that's up to you. Did everything seem to work OK?</p>
+	<textarea id="commentBox" rows=4 cols=40 placeholder="Enter your comments here..."></textarea>
+	<input type="hidden" id="comments" name="comments">
+  <br>
+  <br>
+  <br>
+  <a href='javascript:submitData("./data")' id='submitDataButton' class='button'>Submit results</a>
+  <br>
+  <span id="redirectToProlific">
+    <p>Your browser should automatically redirect you to Prolific's webpage where you will be given a completion code.</p>
+    <p>Redirecting in <span id = countDown><b></b></span> seconds.</p>
+    <p>If you're not automatically redirected in a few seconds, please copy and paste this address on your web browser:
+    <b><span id = urlProlific></span></b></p>
+  </span>
+</div>
+
+<script>
+$(document).ready(introRoutines);
+
+// hide all things aside from instructions
+$('#videoInstructions').hide();
+$('#responseInstructions').hide();
+$('#redirectToProlific').hide();
+$('#videoEvent').hide();
+$('#maskImage').hide();
+$('#container_video').hide();
+$('#afcContainer').hide();
+
+
+var requestAnimationFrame = window.requestAnimationFrame ||
+                            window.mozRequestAnimationFrame ||
+                            window.webkitRequestAnimationFrame ||
+                            window.msRequestAnimationFrame;
+
+// experiment params
+var experimentName = 'e7';
+var experimentVersion = 'persistence_violation';
+
+// timing params
+var itiTime = 1000; // 1000 ms between trials
+var isiTime = 1000;
+
+// various global vars
+var currentTrialNum;
+var trial;
+var subjectID, studyID, sessionID;
+var responses = {};
+var startHITTime;
+var numPlays = 0;
+var isClicked = false;
+var startExperimentTime;
+var t0_respond;
+var answeredSum = false;
+var answeredTask = false;
+var answeredPurpose = false;
+
+// for preloading
+var allImages = {};
+
+// define trialSequence, with each row being [videoName, framePosition, correctFrameName, incorrectFrameName]
+var videoNums = ['1', '2'];
+var videoVisibilities = ['visible_visible', 'invisible_visible', 'visible_invisible', 'invisible_invisible'];
+var videoNames = [];
+
+for (var i = 0; i < videoNums.length; i++) {
+  for (var j = 0; j < videoVisibilities.length; j++) {
+    videoNames.push(videoNums[i] + "_" + videoVisibilities[j]);
+  }
+}
+
+var trialSequence = [];
+var currTrial = [];
+
+for (var i = 0; i < videoNames.length; i++) {
+  var currVideo = videoNames[i];
+  var currVideoNum = currVideo.charAt(0);
+  currTrial.push(currVideo);
+
+  if (currVideo.includes("_visible_visible")) {
+    currTrial.push(1);
+    currTrial.push(currVideoNum + "_visible_visible_end1");
+    currTrial.push(currVideoNum + "_invisible_visible_end1");
+    trialSequence.push(currTrial);
+
+    currTrial = [];
+    currTrial.push(currVideo);
+
+    currTrial.push(2);
+    currTrial.push(currVideoNum + "_visible_visible_end2");
+    currTrial.push(currVideoNum + "_invisible_invisible_end2");
+    trialSequence.push(currTrial);
+    currTrial = [];
+
+  } else if (currVideo.includes("_invisible_visible")) {
+    currTrial.push(1);
+    currTrial.push(currVideoNum + "_invisible_visible_end1");
+    currTrial.push(currVideoNum + "_visible_visible_end1");
+    trialSequence.push(currTrial);
+
+    currTrial = [];
+    currTrial.push(currVideo);
+
+    currTrial.push(2);
+    currTrial.push(currVideoNum + "_visible_visible_end2");
+    currTrial.push(currVideoNum + "_invisible_invisible_end2");
+    trialSequence.push(currTrial);
+    currTrial = [];
+
+  } else if (currVideo.includes("_visible_invisible")) {
+
+    currTrial.push(1);
+    currTrial.push(currVideoNum + "_visible_visible_end1");
+    currTrial.push(currVideoNum + "_invisible_visible_end1");
+    trialSequence.push(currTrial);
+
+    currTrial = [];
+    currTrial.push(currVideo);
+
+    currTrial.push(2);
+    currTrial.push(currVideoNum + "_visible_invisible_end2");
+    currTrial.push(currVideoNum + "_invisible_visible_end2");
+    trialSequence.push(currTrial);
+    currTrial = [];
+
+  } else if (currVideo.includes("_invisible_invisible")) {
+    currTrial.push(1);
+    currTrial.push(currVideoNum + "_invisible_visible_end1");
+    currTrial.push(currVideoNum + "_visible_visible_end1");
+    trialSequence.push(currTrial);
+
+    currTrial = [];
+    currTrial.push(currVideo);
+
+    currTrial.push(2);
+    currTrial.push(currVideoNum + "_visible_invisible_end2");
+    currTrial.push(currVideoNum + "_invisible_visible_end2");
+    trialSequence.push(currTrial);
+    currTrial = [];
+  }
+}
+
+trialSequence = Array(4).fill(trialSequence).flat();
+
+var objectType = [];
+var incorrectType = [];
+
+for (var i = 0; i < trialSequence.length; i++) {
+    if (i < 16) {
+      objectType.push("soccer");
+      incorrectType.push("replace");
+    }
+
+    else if (i >= 16 & i < 32) {
+      objectType.push("soccer");
+      incorrectType.push("same");
+    }
+
+    else if (i >= 32 & i < 48) {
+      objectType.push("monkey");
+      incorrectType.push("replace");
+    }
+
+    else {
+      objectType.push("monkey");
+      incorrectType.push("same");
+    }
+}
+
+var nTrials = 64;
+
+// get browser params, tell user browser is not compatible if needed
+var browserInfo = getBrowser();
+if (browserInfo['name'] == "msie" || browserInfo['name'] == "Opera") {
+  $('#browserCompat').show();
+} else {
+  $('#browserCompat').hide();
+}
+
+// redirect params
+var urlProlific = "https://app.prolific.co/submissions/complete?cc=819E7365";
+var finalCountDownClock = 5;
+
+// when the document has loaded
+function introRoutines() {
+  video = document.getElementById('videoEvent');
+  [subjectID, studyID, sessionID] = getProlificInfo();
+
+  currentTrialNum = -1;
+
+  // gen trials
+  trials = generateTrials();
+  responses['trialData'] = [];
+
+  $('#afcContainer').css('width','480px');
+  $('#afcContainer').css('height','270px');
+  $('#afcContainer').css('margin', 'auto');
+
+  $('#videoEvent').css('width','704px');
+  $('#videoEvent').css('height','396px');
+
+  startHITTime = currentTime();
+  // preload first 5 images
+  for(var i = 0; i < 5; i++) {
+    preload(i);
+  }
+  preloadmasks();
+
+}
+
+function getProlificInfo() {
+  let urlParams = new URLSearchParams(window.location.search);
+  prolificPID = urlParams.get("PROLIFIC_PID");
+  studyID = urlParams.get("STUDY_ID");
+  sessionID = urlParams.get("SESSION_ID");
+  return [prolificPID, studyID, sessionID]
+}
+
+
+function generateTrials() {
+  correct_positions = shuffle(Array(32).fill("left").concat(Array(32).fill("right")));
+  var trials  = [];
+  for (i = 0; i < nTrials; i++) {
+    var trial = {};
+    trial.videoName = trialSequence[i][0];
+    trial.endNum = trialSequence[i][1];
+    trial.objectType = objectType[i];
+    trial.correctFrame = trial.objectType + '/' + trialSequence[i][2];
+    trial.incorrectType = incorrectType[i];
+    if (trial.incorrectType == 'same') {
+      trial.incorrectFrame = trial.objectType + '/' + trialSequence[i][3];
+    } else {
+      if (trial.objectType == "soccer") {
+        trial.incorrectFrame = 'monkey/' + trial.videoName[0] + '_visible_visible_end' + trial.endNum;
+      } else {
+        trial.incorrectFrame = 'soccer/' + trial.videoName[0] + '_visible_visible_end' + trial.endNum;
+      }
+    }
+    trial.correctPosition = correct_positions[i];
+    trial.mask = getRandomInt(1, 7);
+    trials.push(trial);
+  }
+  shuffle(trials);
+  return trials;
+
+}
+
+function StartExperiment() {
+  $('#startExperiment').hide();
+  $('#instructions').hide();
+  $('#startInstructions').hide();
+  startedExperiment = true;
+  startExperimentTime = new Date();
+  $('#progressContainer').show();
+  $('.progress').show();
+  loadTrial();
+
+}
+
+function loadTrial() {
+  currentTrialNum++;
+  if (currentTrialNum < nTrials) {
+    trial = trials[currentTrialNum];
+    trial['trialID'] = currentTrialNum;
+    runTrial();
+  } else {
+    showQuestion();
+  }
+
+}
+
+function runTrial() {
+  $('#progressBar').css('width',((currentTrialNum/nTrials)*100) + 'px');
+  $('#videoInstructions').show();
+  $('#videoEvent').hide();
+
+  if (trial.objectType == "soccer") {
+      $('#videoEvent').attr('src', 'videos/soccer/' + trial.videoName + '.mp4');
+  } else if (trial.objectType == "monkey") {
+    $('#videoEvent').attr('src', 'videos/monkey/' + trial.videoName + '.mp4');
+  }
+
+  changeVid();
+}
+
+function changeVid() {
+  videoLoaded = false;
+  video.load();
+  t0_load = currentTime();
+
+  fired = false;
+  numPlays = 0;
+  document.onkeydown = function(e) {
+    if (!fired && numPlays == 0) {
+       if (e.keyCode == 13) {
+          fired = true;
+          numPlays += 1;
+          waitForVid();
+        }
+    }
+  };
+
+}
+
+function waitForVid() {
+  $('#videoEvent').show();
+  $('#container_video').show();
+  if (videoLoaded & currentTime() - t0_load > 0) {
+    playVid();
+  } else {
+    if ( video.readyState == 4) {
+      videoLoaded = true;
+    }
+    requestAnimationFrame(waitForVid);
+  }
+
+}
+
+function playVid() {
+  $('#maskImage').attr('src', allImages[trial.mask.toString()]);
+  video.pause();
+  video.currentTime = 0;
+  video.play();
+
+  video.addEventListener('ended', (event) => {
+    maskIsi();
+  });
+
+}
+
+function maskIsi() {
+  $('#videoInstructions').hide();
+  $('#videoEvent').hide();
+  $('#maskImage').show();
+
+  if (trial.correctPosition == 'left') {
+    $('#imgLeft').attr('src', allImages[String(trial.trialID) + '_' + trial.correctFrame]);
+    $('#imgRight').attr('src', allImages[String(trial.trialID) + '_' + trial.incorrectFrame]);
+  } else if (trial.correctPosition == 'right') {
+    $('#imgRight').attr('src', allImages[String(trial.trialID) + '_' + trial.correctFrame]);
+    $('#imgLeft').attr('src', allImages[String(trial.trialID) + '_' + trial.incorrectFrame]);
+  }
+
+  setTimeout(presentFrames, isiTime);
+
+}
+
+function presentFrames() {
+  $('#container_video').hide();
+  $('#maskImage').hide();
+
+  $('#responseInstructions').show();
+  $('#afcContainer').show();
+  $('#container1').show();
+  $('#container2').show();
+
+  t0_respond = currentTime();
+  var fired = false;
+  document.onkeydown = function(e) {
+    if (!fired) {
+        if (e.keyCode == 37) {
+            fired = true;
+            trial['response'] = 'left';
+            respond();
+        } else if (e.keyCode == 39) {
+            fired = true;
+            trial['response'] = 'right';
+            respond();
+    }
+
+    }
+  };
+
+}
+
+function respond() {
+  var rt = currentTime() - t0_respond;
+
+  if (trial['trialID'] < nTrials - 5) {
+    preload(trial['trialID'] + 5); // preload next trial into allImages
+  }
+
+  trial['rt'] = Math.round(rt * 10) / 10;
+  trial['subjectID'] = subjectID;
+  responses['trialData'].push(trial);
+
+  $('#responseInstructions').hide();
+  $('#afcContainer').hide();
+
+  setTimeout(loadTrial, itiTime);
+
+}
+
+function checkDemoAnswers() {
+  if($('input[type=radio]:checked').length == 1) {
+    answeredCatch = true;
+  }
+
+  if(answeredCatch == true && answeredSum == true && answeredTask == true && answeredPurpose == true) {
+    $('#doneExperiment').show();
+  }
+}
+
+function showQuestion() {
+  $('#experiment').hide();
+  $('#doneExperiment').hide();
+  $('#questionText').show();
+
+  document.getElementById('sumCheck').addEventListener('input', function() {
+    var text = this.value;
+
+    if (text == 2) {
+        answeredSum = true;
+    }
+
+    if(answeredSum == true && answeredTask == true && answeredPurpose == true) {
+      $('#doneExperiment').show();
+    }
+  });
+
+  document.getElementById('purposeGuess').addEventListener('input', function() {
+    var text = this.value;
+
+    if (text.length >= 1) {
+      answeredPurpose = true;
+    }
+    if(answeredSum == true && answeredTask == true && answeredPurpose == true) {
+      $('#doneExperiment').show();
+    }
+  });
+
+  document.getElementById('taskGuess').addEventListener('input', function() {
+    var text = this.value;
+
+    if (text.length >= 1) {
+      answeredTask = true;
+    }
+    if(answeredSum == true && answeredTask == true && answeredPurpose == true) {
+      $('#doneExperiment').show();
+    }
+  });
+
+}
+
+function doneExperiment() {
+  $('#questionText').hide();
+	$('#doneText').show();
+  $('#submitButton').show();
+	$("#submitButton").css('visibility','visible');
+  $('.progress').hide();
+	$('#commentBox').show();
+
+  assignExperimentInfo();
+
+}
+
+function assignExperimentInfo() {
+  responses['experimentName'] = experimentName;
+  responses['experimentVersion'] = experimentVersion;
+  responses['experimentTime'] = Math.round((currentTime() - startHITTime) * 10) / 10;
+
+  responses['studyID'] = studyID;
+  responses['sessionID'] = sessionID;
+
+  responses['browserName'] = browserInfo['name'];
+  responses['browserVersion'] = browserInfo['version'];
+  responses['displayWindowHeight'] = $(window).height();
+  responses['displayWindowWidth'] = $(window).width();
+  responses['displayScreenHeight'] = screen.height;
+  responses['displayScreenWidth'] = screen.width;
+
+}
+
+function submitData(outDir) {
+  responses['purposeGuess'] = document.getElementById('purposeGuess').value;
+  responses['taskGuess'] = document.getElementById('taskGuess').value;
+  responses['commentText'] = document.getElementById('commentBox').value;
+  responses['totalTime'] = Math.round((currentTime() - startHITTime) * 10) / 10;
+  // get data string from response array
+  var dataString = JSON.stringify(responses);
+
+  // post response to server
+
+  $.post("./logTrial.py", {
+    subjectID: subjectID,
+    dataString: dataString,
+    outDir: outDir
+  });
+
+
+  $('#redirectToProlific').show();
+  $('#urlProlific').text(urlProlific);
+  $('#countDown').text((finalCountDownClock).toString());
+  redirectTimer = setInterval(countDown, 1000);
+}
+
+function currentTime() {
+  return performance.now();
+
+}
+
+function getBrowser() {
+  var ua=navigator.userAgent,tem,M=ua.match(/(opera|chrome|safari|firefox|msie|trident(?=\/))\/?\s*(\d+)/i) || [];
+  if(/trident/i.test(M[1])) {
+    tem=/\brv[ :]+(\d+)/g.exec(ua) || [];
+    return {name:'IE',version:(tem[1]||'')};
+    }
+  if(M[1]==='Chrome') {
+    tem=ua.match(/\bOPR|Edge\/(\d+)/)
+    if(tem!=null) {
+      return {name:'Opera', version:tem[1]};
+      }
+    }
+  M=M[2]? [M[1], M[2]]: [navigator.appName, navigator.appVersion, '-?'];
+  if((tem=ua.match(/version\/(\d+)/i))!=null) {
+    M.splice(1,1,tem[1]);
+  }
+  return {
+    name: M[0],
+    version: M[1]
+  };
+
+}
+
+// shuffle array randomly
+// taken from https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array
+function shuffle(array) {
+  let currentIndex = array.length,  randomIndex;
+
+  // While there remain elements to shuffle.
+  while (currentIndex != 0) {
+
+    // Pick a remaining element.
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex--;
+
+    // And swap it with the current element.
+    [array[currentIndex], array[randomIndex]] = [
+      array[randomIndex], array[currentIndex]];
+  }
+
+  return array;
+}
+
+function countDown () {
+  finalCountDownClock--;
+  if (finalCountDownClock == 0) {
+    clearInterval(redirectTimer);
+    window.location = urlProlific;
+  } else {
+    $('#countDown').text((finalCountDownClock).toString());
+  }
+}
+
+// get random integer
+function getRandomInt(min, max) {
+  min = Math.ceil(min);
+  max = Math.floor(max);
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+// pad numbers
+function pad(n, width=2) {
+  n = n + '';
+  return n.length >= width ? n : new Array(width - n.length + 1).join("0") + n;
+}
+
+//preloading
+function preload(trialToLoad) {
+  preLoadTrial = trials[trialToLoad]
+
+  correctFrame = preLoadTrial.correctFrame;
+  var currImage = new Image();
+  currImage.src = 'frames/' + correctFrame + '.png';
+
+  currImage.onload = function() {
+  };
+  allImages[String(trialToLoad) + '_' + correctFrame] = currImage.src;
+
+  incorrectFrame = preLoadTrial.incorrectFrame;
+  var currImage = new Image();
+  currImage.src = 'frames/' + incorrectFrame + '.png';
+  currImage.onload = function() {
+  };
+  allImages[String(trialToLoad) + '_' + incorrectFrame] = currImage.src;
+
+}
+
+function preloadmasks() {
+  for (i = 1; i < 8; i++) {
+    var currImage = new Image();
+    currImage.src = 'masks/' + i.toString() + '.jpeg';
+    currImage.onload = function(){};
+    allImages[i.toString()] = currImage.src;
+  }
+}
+
+</script>
+
+<style>
+body {
+  font-family: Helvetica,Arial;
+  font-size: 14pt;
+  height: 100%;
+  margin: 10 auto;
+}
+
+#instructions, #startInstructions {
+	display:block;
+	max-width: 80%;
+	margin: 0 auto;
+	margin-top: 0px;
+  text-align: left;
+}
+
+#videoInstructions, #responseInstructions {
+	display:block;
+	max-width: 80%;
+	margin: 0 auto;
+	margin-top: 0px;
+  text-align: left;
+  margin-bottom: -1.2em;
+}
+
+#title, #browserCompat {
+  font-size: 18pt;
+  text-align: center;
+  margin: 0 auto;
+}
+
+#startExperiment, #submitDataButton, #doneExperiment {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto;
+	color: black;
+	font-size:14pt;
+	border: 3px outset gray;
+	background-color: #4CAF50;
+	padding: 0px;
+	text-decoration: none;
+	font-weight: bold;
+  position: relative;
+  width: 150px;
+	margin-top:0px;
+	margin-bottom:0px;
+  border-radius: 8px;
+  transition-duration: 0.4s;
+}
+
+#startExperiment:hover, #submitDataButton:hover, #doneExperiment:hover {
+  background-color: #4CAF50; /* Green */
+  color: white;
+}
+
+#startExperiment:active, #submitDataButton:active, #doneExperiment:active {
+	background: gray;
+}
+
+.progress {
+  text-align: center;
+  display: none;
+  height: 15px;
+}
+
+#progressContainer {
+  text-align: center;
+  display: none;
+}
+
+#progressText {
+  font-size: 14pt;
+  color: black;
+  font-weight: bold;
+  margin-top: 10px;
+  margin-bottom: 10px;
+}
+
+#progressOutline {
+  display: inline-block;
+  background: white;
+  border: 3px solid black;
+  width: 100px;
+  margin: 5 auto;
+  margin-bottom: 10px;
+  border-radius: 5px;
+}
+
+#progressBar {
+  background: #4CAF50;
+  width: 0px;
+  margin-bottom: 10px;
+}
+
+.container {
+  margin: auto;
+}
+
+#container_video {
+  position: absolute;
+  left: 50%;
+  top: 150px;
+  transform: translate(-50%, 150px);
+  margin: auto;
+  color: black;
+  background-color: black;
+  text-align: center;
+  height: 396px;
+  width: 704px;
+}
+
+#container1 {
+  position: absolute;
+  left: 20%;
+  top: 150px;
+  transform: translate(-20%, 150px);
+  margin: auto;
+  color: black;
+  text-align: center;
+}
+
+#container2 {
+  position: absolute;
+  left: 80%;
+  top: 150px;
+  transform: translate(-80%, 150px);
+  margin: auto;
+  color: black;
+  text-align: center;
+}
+
+#doneText, #questionText {
+	display:none;
+	max-width: 500px;
+	text-align:center;
+	margin: 10 auto;
+	padding-bottom:10px;
+	font-size:14pt
+}
+
+#doneText p, #questiontext p {
+	font-size:12pt
+}
+
+.doneTextStyle, .questionTextStyle {
+  display: none;
+}
+
+#commentBox {
+	display:none;
+}
+
+#submitButton {
+	display:block;
+  width: 100%;
+  margin-top: 500px;
+  margin-bottom: 50px;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  width: 50%;
+}
+
+</style>
