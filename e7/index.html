@@ -108,7 +108,7 @@ var requestAnimationFrame = window.requestAnimationFrame ||
 
 // experiment params
 var experimentName = 'e7';
-var experimentVersion = 'persistence_violation';
+var experimentVersion = 'different_event';
 
 // timing params
 var itiTime = 1000; // 1000 ms between trials
@@ -215,28 +215,23 @@ for (var i = 0; i < videoNames.length; i++) {
 
 trialSequence = Array(4).fill(trialSequence).flat();
 
-var objectType = [];
-var incorrectType = [];
+var eventType = [];
 
 for (var i = 0; i < trialSequence.length; i++) {
     if (i < 16) {
-      objectType.push("soccer");
-      incorrectType.push("replace");
+      eventType.push("red_red");
     }
 
     else if (i >= 16 & i < 32) {
-      objectType.push("soccer");
-      incorrectType.push("same");
+      eventType.push("soccer_soccer");
     }
 
     else if (i >= 32 & i < 48) {
-      objectType.push("monkey");
-      incorrectType.push("replace");
+      eventType.push("soccer_red");
     }
 
     else {
-      objectType.push("monkey");
-      incorrectType.push("same");
+      eventType.push("red_soccer");
     }
 }
 
@@ -251,7 +246,7 @@ if (browserInfo['name'] == "msie" || browserInfo['name'] == "Opera") {
 }
 
 // redirect params
-var urlProlific = "https://app.prolific.co/submissions/complete?cc=819E7365";
+var urlProlific = "https://app.prolific.co/"; // anonymized completion code
 var finalCountDownClock = 5;
 
 // when the document has loaded
@@ -291,24 +286,15 @@ function getProlificInfo() {
 
 
 function generateTrials() {
-  correct_positions = shuffle(Array(32).fill("left").concat(Array(32).fill("right")));
+  correct_positions = shuffle(Array(nTrials / 2).fill("left").concat(Array(nTrials / 2).fill("right")));
   var trials  = [];
   for (i = 0; i < nTrials; i++) {
     var trial = {};
     trial.videoName = trialSequence[i][0];
     trial.endNum = trialSequence[i][1];
-    trial.objectType = objectType[i];
-    trial.correctFrame = trial.objectType + '/' + trialSequence[i][2];
-    trial.incorrectType = incorrectType[i];
-    if (trial.incorrectType == 'same') {
-      trial.incorrectFrame = trial.objectType + '/' + trialSequence[i][3];
-    } else {
-      if (trial.objectType == "soccer") {
-        trial.incorrectFrame = 'monkey/' + trial.videoName[0] + '_visible_visible_end' + trial.endNum;
-      } else {
-        trial.incorrectFrame = 'soccer/' + trial.videoName[0] + '_visible_visible_end' + trial.endNum;
-      }
-    }
+    trial.correctFrame = trialSequence[i][2];
+    trial.incorrectFrame = trialSequence[i][3];
+    trial.eventType = eventType[i];
     trial.correctPosition = correct_positions[i];
     trial.mask = getRandomInt(1, 7);
     trials.push(trial);
@@ -347,11 +333,7 @@ function runTrial() {
   $('#videoInstructions').show();
   $('#videoEvent').hide();
 
-  if (trial.objectType == "soccer") {
-      $('#videoEvent').attr('src', 'videos/soccer/' + trial.videoName + '.mp4');
-  } else if (trial.objectType == "monkey") {
-    $('#videoEvent').attr('src', 'videos/monkey/' + trial.videoName + '.mp4');
-  }
+  $('#videoEvent').attr('src', 'videos/' + trial.eventType + '/' + trial.videoName + '.mp4');
 
   changeVid();
 }
@@ -644,7 +626,7 @@ function preload(trialToLoad) {
 
   correctFrame = preLoadTrial.correctFrame;
   var currImage = new Image();
-  currImage.src = 'frames/' + correctFrame + '.png';
+  currImage.src = 'frames/' + preLoadTrial.eventType + '/' + correctFrame + '.png';
 
   currImage.onload = function() {
   };
@@ -652,7 +634,7 @@ function preload(trialToLoad) {
 
   incorrectFrame = preLoadTrial.incorrectFrame;
   var currImage = new Image();
-  currImage.src = 'frames/' + incorrectFrame + '.png';
+  currImage.src = 'frames/' + preLoadTrial.eventType + '/' + incorrectFrame + '.png';
   currImage.onload = function() {
   };
   allImages[String(trialToLoad) + '_' + incorrectFrame] = currImage.src;
